@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compound Interest Calculator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="{{ url_for('static', filename='script.js') }}" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <h1>Compound Interest Calculator</h1>
+    <div class="container">
+        <form method="POST" id="calcForm">
+            <label for="initial">Initial Investment ($):</label>
+            <input type="number" id="initial" name="initial" value="{{ initial }}" min="0" step="0.01" required>
+
+            <label for="rate">Annual Interest Rate (%):</label>
+            <input type="number" id="rate" name="rate" value="{{ rate }}" min="0" step="0.1" required>
+
+            <label for="years">Time Period (Years):</label>
+            <input type="number" id="years" name="years" value="{{ years }}" min="1" step="1" required oninput="updateSliders()">
+
+            <label for="compound">Compounding Frequency:</label>
+            <select id="compound" name="compound">
+                <option value="12" {% if compound == 12 %}selected{% endif %}>Monthly</option>
+                <option value="4" {% if compound == 4 %}selected{% endif %}>Quarterly</option>
+                <option value="2" {% if compound == 2 %}selected{% endif %}>Semi-Annually</option>
+                <option value="1" {% if compound == 1 %}selected{% endif %}>Annually</option>
+            </select>
+
+            <label for="inflation_rate">Annual Inflation Rate (%):</label>
+            <input type="number" id="inflation_rate" name="inflation_rate" value="{{ inflation_rate }}" min="0" step="0.1" required>
+
+            <label for="slider_unit">Slider Unit:</label>
+            <select id="slider_unit" name="slider_unit" onchange="updateSliders()">
+                <option value="months" {% if slider_unit == 'months' %}selected{% endif %}>Months</option>
+                <option value="years" {% if slider_unit == 'years' %}selected{% endif %}>Years</option>
+            </select>
+
+            <h3>Deposits</h3>
+            <div id="deposits">
+                {% for dep in deposits %}
+                <div class="deposit-entry">
+                    <label>Period: <span class="slider-value" id="deposit_start_val_{{ loop.index0 }}">{{ dep.start }}</span> - <span class="slider-value" id="deposit_end_val_{{ loop.index0 }}">{{ dep.end }}</span></label>
+                    <div class="dual-slider" data-min="1" data-max="{{ 'years' if slider_unit == 'years' else years * 12 }}" data-start="{{ dep.start }}" data-end="{{ dep.end }}">
+                        <input type="range" name="deposit_start_{{ loop.index0 }}" class="range-start" min="1" max="{{ years if slider_unit == 'years' else years * 12 }}" value="{{ dep.start }}" oninput="updateDualSlider('deposit', {{ loop.index0 }})">
+                        <input type="range" name="deposit_end_{{ loop.index0 }}" class="range-end" min="1" max="{{ years if slider_unit == 'years' else years * 12 }}" value="{{ dep.end }}" oninput="updateDualSlider('deposit', {{ loop.index0 }})">
+                    </div>
+                    <div class="amount-row">
+                        <label>Amount ($):</label>
+                        <input type="number" name="deposit_amount_{{ loop.index0 }}" value="{{ dep.amount }}" min="0" step="0.01" required>
+                        <button type="button" onclick="this.parentElement.parentElement.remove(); updateDepositCount()">Remove</button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <button type="button" onclick="addDeposit({{ years }})">Add Deposit</button>
+            <input type="hidden" id="deposit_count" name="deposit_count" value="0">
+
+            <h3>Withdrawals</h3>
+            <div id="withdrawals">
+                {% for wth in withdrawals %}
+                <div class="withdrawal-entry">
+                    <label>Period: <span class="slider-value" id="withdrawal_start_val_{{ loop.index0 }}">{{ wth.start }}</span> - <span class="slider-value" id="withdrawal_end_val_{{ loop.index0 }}">{{ wth.end }}</span></label>
+                    <div class="dual-slider" data-min="1" data-max="{{ 'years' if slider_unit == 'years' else years * 12 }}" data-start="{{ wth.start }}" data-end="{{ wth.end }}">
+                        <input type="range" name="withdrawal_start_{{ loop.index0 }}" class="range-start" min="1" max="{{ years if slider_unit == 'years' else years * 12 }}" value="{{ wth.start }}" oninput="updateDualSlider('withdrawal', {{ loop.index0 }})">
+                        <input type="range" name="withdrawal_end_{{ loop.index0 }}" class="range-end" min="1" max="{{ years if slider_unit == 'years' else years * 12 }}" value="{{ wth.end }}" oninput="updateDualSlider('withdrawal', {{ loop.index0 }})">
+                    </div>
+                    <div class="amount-row">
+                        <label>Amount ($):</label>
+                        <input type="number" name="withdrawal_amount_{{ loop.index0 }}" value="{{ wth.amount }}" min="0" step="0.01" required>
+                        <button type="button" onclick="this.parentElement.parentElement.remove(); updateWithdrawalCount()">Remove</button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="button-group">
+                <button type="button" onclick="addWithdrawal({{ years }})">Add Withdrawal</button>
+                <input type="hidden" id="withdrawal_count" name="withdrawal_count" value="0">
+                <button type="submit" class="calculate-btn">Calculate</button>
+            </div>
+            <div class="chart-container">
+                <canvas id="investmentChart"></canvas>
+            </div>
+        </form>
+
+        {% if totals %}
+        <div id="results">
+            <h3>Results</h3>
+            <p>Final Balance: ${{ totals.final_balance|format_number }}</p>
+            <p>Inflation-Adjusted Final Balance: ${{ totals.adjusted_final_balance|format_number }}</p>
+            <p>Total Deposits: ${{ totals.total_deposits|format_number }}</p>
+            <p>Total Withdrawals: ${{ totals.total_withdrawals|format_number }}</p>
+            <p>Total Interest Earned: ${{ totals.total_interest|format_number }}</p>
+            <p>Effective Annual Growth Rate: {{ totals.effective_rate|format_number }}%</p>
+        </div>
+        {% endif %}
+
+        {% if yearly_data %}
+        <div id="details">
+            <h3>Yearly Breakdown</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Year</th>
+                        <th>Starting Balance</th>
+                        <th>Deposits</th>
+                        <th>Withdrawals</th>
+                        <th>Interest</th>
+                        <th>Ending Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for year, data in yearly_data.items() %}
+                    <tr>
+                        <td>
+                            <details>
+                                <summary>Year {{ year }}</summary>
+                                <table class="monthly-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Month</th>
+                                            <th>Starting Balance</th>
+                                            <th>Deposits</th>
+                                            <th>Withdrawals</th>
+                                            <th>Interest This Month</th>
+                                            <th>Ending Balance</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for month_data in data.months %}
+                                        <tr>
+                                            <td>{{ month_data.month }}</td>
+                                            <td>${{ month_data.starting_balance|format_number }}</td>
+                                            <td>${{ month_data.deposit_this_month|format_number }}</td>
+                                            <td>${{ month_data.withdrawal_this_month|format_number }}</td>
+                                            <td>${{ month_data.interest_this_month|format_number }}</td>
+                                            <td>${{ month_data.ending_balance|format_number }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </details>
+                        </td>
+                        <td>${{ data.starting_balance|format_number }}</td>
+                        <td>${{ data.deposits|format_number }}</td>
+                        <td>${{ data.withdrawals|format_number }}</td>
+                        <td>${{ data.interest|format_number }}</td>
+                        <td>${{ data.ending_balance|format_number }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if chart_data %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const ctx = document.getElementById('investmentChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: {{ chart_data.months|safe }},
+                    datasets: [
+                        {
+                            label: 'Total Money Invested',
+                            data: {{ chart_data.contributions|safe }},
+                            borderColor: '#1e90ff',
+                            fill: false
+                        },
+                        {
+                            label: 'Total Money',
+                            data: {{ chart_data.balances|safe }},
+                            borderColor: '#ff6384',
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Month'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Amount ($)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                }
+                            }
+                        }
+                    },
+                    tooltips: {
+                        callbacks: {
+                            label: function(tooltipItem) {
+                                return tooltipItem.dataset.label + ': $' + tooltipItem.yLabel.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            }
+                        }
+                    }
+                }
+            });
+        });
+    </script>
+    {% endif %}
+</body>
+</html>
