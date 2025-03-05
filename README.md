@@ -1,6 +1,6 @@
 # Compound Interest Calculator
 
-![111111](https://github.com/user-attachments/assets/9fb1ae55-0dfc-4a52-952a-844cd9bea2e2)
+![fullscreen](https://github.com/user-attachments/assets/fbdc4b0d-110b-4535-b0d1-6349332b3a0a)
 
 A powerful and user-friendly web application built with Flask to calculate compound interest over time, featuring dynamic deposit and withdrawal options, inflation adjustments, and interactive visualizations.
 
@@ -10,11 +10,6 @@ A powerful and user-friendly web application built with Flask to calculate compo
 - [Overview](#overview)
 - [Features](#features)
 - [Screenshots](#screenshots)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Project Structure](#project-structure)
-- [Contributing](#contributing)
-- [License](#license)
 
 ---
 
@@ -38,30 +33,17 @@ The **Compound Interest Calculator** is a Flask-based web tool designed to help 
 
 ## Screenshots
 
-### Deposit and Withdrawal Options
+### Add Multiple Deposit and Withdrawal Options
 
-![dsdds](https://github.com/user-attachments/assets/7af09526-f882-4d8f-9dd6-bdc2f0d91e99)
+![deposits_withdraws](https://github.com/user-attachments/assets/c1f497e6-3ae3-4faf-b819-a5cabc9090a5)
 
 *Set up your investment with initial amount, interest rate, deposits, and withdrawals.*
 
 ### Yearly Breakdown with Monthly Details
-![Screenshot 2025-03-04 000056](https://github.com/user-attachments/assets/061c45d6-da6d-4436-a3fe-96fec47aa8b9)
+![months](https://github.com/user-attachments/assets/fa87c386-5b96-4524-8ae3-3416a048cd2e)
 
 *Click on a year to expand and view detailed monthly data.*
 
 ---
 
-## Installation
 
-Follow these steps to set up and run the Compound Interest Calculator locally:
-
-### Prerequisites
-- **Python 3.6+**
-- **pip** (Python package manager)
-- **Git** (optional, for cloning)
-
-### Steps
-1. **Clone the Repository**
-   ```bash
-   git clone https://github.com/yourusername/compound-interest-calculator.git
-   cd compound-interest-calculator
