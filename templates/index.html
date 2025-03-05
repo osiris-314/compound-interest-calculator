@@ -100,14 +100,17 @@
         {% if yearly_data %}
         <div id="details">
             <h3>Yearly Breakdown</h3>
-            <table>
+            <table class="yearly-table">
                 <thead>
                     <tr>
                         <th>Year</th>
                         <th>Starting Balance</th>
                         <th>Deposits</th>
+                        <th>Total Deposits</th>
                         <th>Withdrawals</th>
+                        <th>Total Withdrawals</th>
                         <th>Interest</th>
+                        <th>Total Interest</th>
                         <th>Ending Balance</th>
                     </tr>
                 </thead>
@@ -117,14 +120,31 @@
                         <td>
                             <details>
                                 <summary>Year {{ year }}</summary>
+                            </details>
+                        </td>
+                        <td>${{ data.starting_balance|format_number }}</td>
+                        <td>${{ data.deposits|format_number }}</td>
+                        <td>${{ data.total_deposits|format_number }}</td>
+                        <td>${{ data.withdrawals|format_number }}</td>
+                        <td>${{ data.total_withdrawals|format_number }}</td>
+                        <td>${{ data.interest|format_number }}</td>
+                        <td>${{ data.total_interest|format_number }}</td>
+                        <td>${{ data.ending_balance|format_number }}</td>
+                    </tr>
+                    <tr class="monthly-row" style="display: none;">
+                        <td colspan="9">
+                            <div class="monthly-container">
                                 <table class="monthly-table">
                                     <thead>
                                         <tr>
                                             <th>Month</th>
                                             <th>Starting Balance</th>
                                             <th>Deposits</th>
+                                            <th>Total Deposits</th>
                                             <th>Withdrawals</th>
+                                            <th>Total Withdrawals</th>
                                             <th>Interest This Month</th>
+                                            <th>Total Interest</th>
                                             <th>Ending Balance</th>
                                         </tr>
                                     </thead>
@@ -134,20 +154,18 @@
                                             <td>{{ month_data.month }}</td>
                                             <td>${{ month_data.starting_balance|format_number }}</td>
                                             <td>${{ month_data.deposit_this_month|format_number }}</td>
+                                            <td>${{ month_data.total_deposits|format_number }}</td>
                                             <td>${{ month_data.withdrawal_this_month|format_number }}</td>
+                                            <td>${{ month_data.total_withdrawals|format_number }}</td>
                                             <td>${{ month_data.interest_this_month|format_number }}</td>
+                                            <td>${{ month_data.total_interest|format_number }}</td>
                                             <td>${{ month_data.ending_balance|format_number }}</td>
                                         </tr>
                                         {% endfor %}
                                     </tbody>
                                 </table>
-                            </details>
+                            </div>
                         </td>
-                        <td>${{ data.starting_balance|format_number }}</td>
-                        <td>${{ data.deposits|format_number }}</td>
-                        <td>${{ data.withdrawals|format_number }}</td>
-                        <td>${{ data.interest|format_number }}</td>
-                        <td>${{ data.ending_balance|format_number }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -208,6 +226,18 @@
                         }
                     }
                 }
+            });
+
+            // Toggle monthly data visibility
+            document.querySelectorAll('.yearly-table details').forEach(detail => {
+                detail.addEventListener('toggle', function() {
+                    const monthlyRow = this.closest('tr').nextElementSibling;
+                    if (this.open) {
+                        monthlyRow.style.display = 'table-row';
+                    } else {
+                        monthlyRow.style.display = 'none';
+                    }
+                });
             });
         });
     </script>
