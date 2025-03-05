@@ -17,6 +17,9 @@ h1, h3 {
     padding: 20px;
     border-radius: 8px;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    max-width: 1000px;
+    margin: 20px auto;
+    /* Removed overflow: hidden to allow sticky header to work */
 }
 
 label {
@@ -185,8 +188,10 @@ table {
 
 th, td {
     border: 1px solid #444;
-    padding: 8px;
+    padding: 5px;
     text-align: center;
+    font-size: 14px;
+    white-space: nowrap;
 }
 
 th {
@@ -228,17 +233,31 @@ summary:hover {
     background-color: #383838;
 }
 
+.yearly-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    position: relative;
+}
+
+.monthly-row {
+    display: none; /* Hidden by default, shown when details expanded */
+}
+
+.monthly-container {
+    width: 100%;
+    padding: 0; /* Remove padding to maximize space */
+}
+
 .monthly-table {
     width: 100%;
     border-collapse: collapse;
     margin: 0;
+    max-width: 100%; /* Ensure it fits container */
 }
 
-.monthly-table th {
-    background-color: #404040;
-    position: static;
-}
-
-.monthly-table td {
-    background-color: #282828;
+.monthly-table th, .monthly-table td {
+    padding: 5px;
+    font-size: 14px;
+    white-space: nowrap;
 }
