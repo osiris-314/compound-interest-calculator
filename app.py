@@ -2,7 +2,7 @@ from flask import Flask, render_template, request
 
 app = Flask(__name__)
 
-# Custom Jinja filter to format numbers with commas and 2 decimal places (used only for display, not input values)
+# Custom Jinja filter to format numbers with commas and 2 decimal places
 @app.template_filter('format_number')
 def format_number(value):
     try:
@@ -22,11 +22,22 @@ def calculate_compound_interest(initial, rate, years, compound, deposits, withdr
     total_withdrawals = 0
     total_interest = 0
     total_contributions = 0
-    adjusted_balance = balance
 
     effective_rate = round(((1 + annual_rate / compound_per_year) ** compound_per_year - 1) * 100, 2)
 
-    yearly_data = {i: {'starting_balance': 0, 'ending_balance': 0, 'deposits': 0, 'withdrawals': 0, 'interest': 0, 'months': []} for i in range(1, years + 1)}
+    yearly_data = {
+        i: {
+            'starting_balance': 0,
+            'ending_balance': 0,
+            'deposits': 0,
+            'total_deposits': 0,  # Cumulative deposits up to end of year
+            'withdrawals': 0,
+            'total_withdrawals': 0,  # Cumulative withdrawals up to end of year
+            'interest': 0,
+            'total_interest': 0,  # Cumulative interest up to end of year
+            'months': []
+        } for i in range(1, years + 1)
+    }
     chart_data = {'months': [], 'contributions': [], 'balances': []}
 
     for month in range(1, total_months + 1):
@@ -61,16 +72,17 @@ def calculate_compound_interest(initial, rate, years, compound, deposits, withdr
                     total_contributions = round(total_contributions - balance, 2)
                     balance = 0
 
-        adjusted_balance = round(balance / (1 + monthly_inflation) ** month, 2)
-
         month_data = {
             'month': month,
             'year': year,
             'starting_balance': starting_balance,
             'ending_balance': balance,
             'interest_this_month': monthly_interest,
+            'total_interest': total_interest,  # Cumulative interest up to this month
             'deposit_this_month': deposit_amount,
-            'withdrawal_this_month': withdrawal_amount
+            'total_deposits': total_deposits,  # Cumulative deposits up to this month
+            'withdrawal_this_month': withdrawal_amount,
+            'total_withdrawals': total_withdrawals  # Cumulative withdrawals up to this month
         }
         yearly_data[year]['months'].append(month_data)
 
@@ -78,12 +90,17 @@ def calculate_compound_interest(initial, rate, years, compound, deposits, withdr
             yearly_data[year]['starting_balance'] = starting_balance
         yearly_data[year]['ending_balance'] = balance
         yearly_data[year]['deposits'] = round(yearly_data[year]['deposits'] + deposit_amount, 2)
+        yearly_data[year]['total_deposits'] = total_deposits
         yearly_data[year]['withdrawals'] = round(yearly_data[year]['withdrawals'] + withdrawal_amount, 2)
+        yearly_data[year]['total_withdrawals'] = total_withdrawals
         yearly_data[year]['interest'] = round(yearly_data[year]['interest'] + monthly_interest, 2)
+        yearly_data[year]['total_interest'] = total_interest
 
         chart_data['months'].append(month)
         chart_data['contributions'].append(round(total_contributions, 2))
         chart_data['balances'].append(round(balance, 2))
+
+    adjusted_balance = round(balance / (1 + monthly_inflation) ** total_months, 2)
 
     totals = {
         'final_balance': balance,
@@ -107,7 +124,7 @@ def index():
     compound = 12
     inflation_rate = 0
     slider_unit = 'months'
-    deposits = []  # Start with empty list
+    deposits = []
     withdrawals = []
 
     if request.method == 'POST':
@@ -118,14 +135,13 @@ def index():
         inflation_rate = float(request.form.get('inflation_rate', 0))
         slider_unit = request.form.get('slider_unit', 'months')
 
-        # Process deposits from form data
         deposits = []
         deposit_count = int(request.form.get('deposit_count', 0))
         for i in range(deposit_count):
             start = request.form.get(f'deposit_start_{i}')
             end = request.form.get(f'deposit_end_{i}')
             amount = request.form.get(f'deposit_amount_{i}', '')
-            print(f"Deposit {i}: start={start}, end={end}, amount={amount}")  # Debugging
+            print(f"Deposit {i}: start={start}, end={end}, amount={amount}")
             if start and end:
                 try:
                     start = int(start)
@@ -150,14 +166,13 @@ def index():
                         'amount': 0
                     })
 
-        # Process withdrawals from form data
         withdrawals = []
         withdrawal_count = int(request.form.get('withdrawal_count', 0))
         for i in range(withdrawal_count):
             start = request.form.get(f'withdrawal_start_{i}')
             end = request.form.get(f'withdrawal_end_{i}')
             amount = request.form.get(f'withdrawal_amount_{i}', '')
-            print(f"Withdrawal {i}: start={start}, end={end}, amount={amount}")  # Debugging
+            print(f"Withdrawal {i}: start={start}, end={end}, amount={amount}")
             if start and end:
                 try:
                     start = int(start)
@@ -186,10 +201,8 @@ def index():
             initial, rate, years, compound, deposits, withdrawals, inflation_rate
         )
     else:
-        # For GET request (initial load), provide a default deposit
         deposits = [{'start_month': 1, 'end_month': 60, 'amount': 100}]
 
-    # Prepare deposits for template rendering
     slider_deposits = []
     for dep in deposits:
         if slider_unit == 'years':
@@ -202,7 +215,6 @@ def index():
             end = dep['end_month']
         slider_deposits.append({'start': start, 'end': end, 'amount': dep['amount']})
 
-    # Prepare withdrawals for template rendering
     slider_withdrawals = []
     for wth in withdrawals:
         if slider_unit == 'years':
@@ -215,8 +227,8 @@ def index():
             end = wth['end_month']
         slider_withdrawals.append({'start': start, 'end': end, 'amount': wth['amount']})
 
-    print(f"Slider Deposits: {slider_deposits}")  # Debugging
-    print(f"Slider Withdrawals: {slider_withdrawals}")  # Debugging
+    print(f"Slider Deposits: {slider_deposits}")
+    print(f"Slider Withdrawals: {slider_withdrawals}")
 
     return render_template('index.html', totals=totals, yearly_data=yearly_data, chart_data=chart_data,
                            initial=initial, rate=rate, years=years, compound=compound,
