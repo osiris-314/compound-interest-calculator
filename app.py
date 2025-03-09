@@ -1,239 +1,203 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify
+import math
+import json
 
 app = Flask(__name__)
 
-# Custom Jinja filter to format numbers with commas and 2 decimal places
-@app.template_filter('format_number')
-def format_number(value):
-    try:
-        return "{:,.2f}".format(float(value))
-    except (ValueError, TypeError):
-        return value
-
-def calculate_compound_interest(initial, rate, years, compound, deposits, withdrawals, inflation_rate=0):
-    balance = round(float(initial), 2)
-    annual_rate = round(float(rate) / 100, 4)
-    inflation_rate = round(float(inflation_rate) / 100, 4)
-    total_months = int(years) * 12
-    compound_per_year = int(compound)
-    monthly_rate = round(annual_rate / compound_per_year, 6)
-    monthly_inflation = round(inflation_rate / 12, 6)
+def calculate_investment(initial, rate, years, compound, inflation_rate, tax_rate, deposits, withdrawals, slider_unit):
+    total_months = years * 12
+    balance = initial
     total_deposits = 0
     total_withdrawals = 0
     total_interest = 0
-    total_contributions = 0
+    total_tax = 0
+    monthly_rate = rate / compound
+    monthly_inflation = inflation_rate / 12
 
-    effective_rate = round(((1 + annual_rate / compound_per_year) ** compound_per_year - 1) * 100, 2)
-
-    yearly_data = {
-        i: {
-            'starting_balance': 0,
-            'ending_balance': 0,
-            'deposits': 0,
-            'total_deposits': 0,  # Cumulative deposits up to end of year
-            'withdrawals': 0,
-            'total_withdrawals': 0,  # Cumulative withdrawals up to end of year
-            'interest': 0,
-            'total_interest': 0,  # Cumulative interest up to end of year
-            'months': []
-        } for i in range(1, years + 1)
+    yearly_data = {}
+    chart_data = {
+        'months': [],
+        'years': [],
+        'balances': [],
+        'contributions': [],
+        'withdrawals': [],
+        'deposits': [],
+        'interest': [],
+        'withdrawals_this_month': []
     }
-    chart_data = {'months': [], 'contributions': [], 'balances': []}
 
     for month in range(1, total_months + 1):
-        year = (month - 1) // 12 + 1
-        starting_balance = round(balance, 2)
-        monthly_interest = round(balance * monthly_rate, 2)
-        balance = round(balance + monthly_interest, 2)
-        total_interest = round(total_interest + monthly_interest, 2)
+        year = math.ceil(month / 12)
+        if year not in yearly_data:
+            yearly_data[year] = {
+                'starting_balance': balance,
+                'deposits': 0,
+                'total_deposits': total_deposits,
+                'withdrawals': 0,
+                'total_withdrawals': total_withdrawals,
+                'interest': 0,
+                'total_interest': total_interest,
+                'taxes': 0,
+                'total_taxes': total_tax,
+                'ending_balance': 0,
+                'months': []
+            }
 
-        deposit_amount = 0
+        # Deposits this month
+        deposit_this_month = 0
         for dep in deposits:
-            start = dep['start_month']
-            end = dep['end_month']
-            if start <= month <= end:
-                deposit_amount = round(deposit_amount + float(dep['amount']), 2)
-                balance = round(balance + float(dep['amount']), 2)
-                total_deposits = round(total_deposits + float(dep['amount']), 2)
-                total_contributions = round(total_contributions + float(dep['amount']), 2)
-
-        withdrawal_amount = 0
-        for wth in withdrawals:
-            start = wth['start_month']
-            end = wth['end_month']
-            if start <= month <= end:
-                withdrawal_amount = round(withdrawal_amount + float(wth['amount']), 2)
-                if balance >= float(wth['amount']):
-                    balance = round(balance - float(wth['amount']), 2)
-                    total_withdrawals = round(total_withdrawals + float(wth['amount']), 2)
-                    total_contributions = round(total_contributions - float(wth['amount']), 2)
-                else:
-                    total_withdrawals = round(total_withdrawals + balance, 2)
-                    total_contributions = round(total_contributions - balance, 2)
-                    balance = 0
-
-        month_data = {
-            'month': month,
-            'year': year,
-            'starting_balance': starting_balance,
-            'ending_balance': balance,
-            'interest_this_month': monthly_interest,
-            'total_interest': total_interest,  # Cumulative interest up to this month
-            'deposit_this_month': deposit_amount,
-            'total_deposits': total_deposits,  # Cumulative deposits up to this month
-            'withdrawal_this_month': withdrawal_amount,
-            'total_withdrawals': total_withdrawals  # Cumulative withdrawals up to this month
-        }
-        yearly_data[year]['months'].append(month_data)
-
-        if month % 12 == 1:
-            yearly_data[year]['starting_balance'] = starting_balance
-        yearly_data[year]['ending_balance'] = balance
-        yearly_data[year]['deposits'] = round(yearly_data[year]['deposits'] + deposit_amount, 2)
+            period_start = dep['start'] if slider_unit == 'months' else dep['start'] * 12
+            period_end = dep['end'] if slider_unit == 'months' else dep['end'] * 12
+            if period_start <= month <= period_end:
+                deposit_this_month += dep['amount']
+        balance += deposit_this_month
+        total_deposits += deposit_this_month
+        yearly_data[year]['deposits'] += deposit_this_month
         yearly_data[year]['total_deposits'] = total_deposits
-        yearly_data[year]['withdrawals'] = round(yearly_data[year]['withdrawals'] + withdrawal_amount, 2)
-        yearly_data[year]['total_withdrawals'] = total_withdrawals
-        yearly_data[year]['interest'] = round(yearly_data[year]['interest'] + monthly_interest, 2)
+
+        # Interest this month
+        interest_this_month = balance * monthly_rate
+        tax_this_month = interest_this_month * tax_rate
+        net_interest = interest_this_month - tax_this_month
+        balance += net_interest
+        total_interest += interest_this_month
+        total_tax += tax_this_month
+        yearly_data[year]['interest'] += interest_this_month
         yearly_data[year]['total_interest'] = total_interest
+        yearly_data[year]['taxes'] += tax_this_month
+        yearly_data[year]['total_taxes'] = total_tax
 
-        chart_data['months'].append(month)
-        chart_data['contributions'].append(round(total_contributions, 2))
-        chart_data['balances'].append(round(balance, 2))
+        # Withdrawals this month
+        withdrawal_this_month = 0
+        for wth in withdrawals:
+            period_start = wth['start'] if slider_unit == 'months' else wth['start'] * 12
+            period_end = wth['end'] if slider_unit == 'months' else wth['end'] * 12
+            if period_start <= month <= period_end:
+                withdrawal_this_month += wth['amount']
+        balance -= withdrawal_this_month
+        total_withdrawals += withdrawal_this_month
+        yearly_data[year]['withdrawals'] += withdrawal_this_month
+        yearly_data[year]['total_withdrawals'] = total_withdrawals
 
-    adjusted_balance = round(balance / (1 + monthly_inflation) ** total_months, 2)
+        # Record monthly data
+        yearly_data[year]['months'].append({
+            'month': month % 12 or 12,
+            'starting_balance': balance - net_interest + withdrawal_this_month - deposit_this_month,
+            'deposit_this_month': deposit_this_month,
+            'total_deposits': total_deposits,
+            'withdrawal_this_month': withdrawal_this_month,
+            'total_withdrawals': total_withdrawals,
+            'interest_this_month': interest_this_month,
+            'total_interest': total_interest,
+            'taxes': tax_this_month,
+            'total_taxes': total_tax,
+            'ending_balance': balance
+        })
+        yearly_data[year]['ending_balance'] = balance
+
+        # Chart data
+        chart_data['months'].append(month % 12 or 12)
+        chart_data['years'].append(year)
+        chart_data['balances'].append(balance)
+        chart_data['contributions'].append(total_deposits + initial)
+        chart_data['withdrawals'].append(total_withdrawals)
+        chart_data['deposits'].append(deposit_this_month)
+        chart_data['interest'].append(interest_this_month)
+        chart_data['withdrawals_this_month'].append(withdrawal_this_month)
+
+    # Calculate totals
+    final_balance = balance
+    adjusted_final_balance = final_balance / ((1 + monthly_inflation) ** total_months)
+    effective_rate = ((final_balance / initial) ** (1 / years) - 1) * 100 if initial > 0 else 0
 
     totals = {
-        'final_balance': balance,
-        'total_deposits': total_deposits,
-        'total_withdrawals': total_withdrawals,
-        'total_interest': total_interest,
-        'adjusted_final_balance': adjusted_balance,
-        'effective_rate': effective_rate
+        'final_balance': round(final_balance, 2),
+        'adjusted_final_balance': round(adjusted_final_balance, 2),
+        'total_deposits': round(total_deposits, 2),
+        'total_withdrawals': round(total_withdrawals, 2),
+        'total_interest': round(total_interest, 2),
+        'total_tax': round(total_tax, 2),
+        'effective_rate': round(effective_rate, 2)
     }
 
     return totals, yearly_data, chart_data
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    totals = None
-    yearly_data = None
-    chart_data = None
-    initial = 1000
-    rate = 5
-    years = 10
-    compound = 12
-    inflation_rate = 0
-    slider_unit = 'months'
-    deposits = []
-    withdrawals = []
+    # Default values
+    defaults = {
+        'initial': 1000.00,
+        'rate': 5.0,
+        'years': 30,
+        'compound': 12,
+        'inflation_rate': 2.0,
+        'tax_rate': 15.0,
+        'slider_unit': 'months',
+        'deposits': [],
+        'withdrawals': []
+    }
 
-    if request.method == 'POST':
-        initial = float(request.form.get('initial', 1000))
-        rate = float(request.form.get('rate', 5))
-        years = int(request.form.get('years', 10))
+    if request.method == 'GET':
+        # Calculate initial data for GET request
+        totals, yearly_data, chart_data = calculate_investment(
+            defaults['initial'],
+            defaults['rate'] / 100,
+            defaults['years'],
+            defaults['compound'],
+            defaults['inflation_rate'] / 100,
+            defaults['tax_rate'] / 100,
+            defaults['deposits'],
+            defaults['withdrawals'],
+            defaults['slider_unit']
+        )
+        # Pass chart_data as JSON string
+        chart_data_json = json.dumps(chart_data)
+        return render_template('index.html', **defaults, totals=totals, yearly_data=yearly_data, chart_data_json=chart_data_json)
+
+    elif request.method == 'POST':
+        # Parse form data
+        initial = float(request.form.get('initial', 0))
+        rate = float(request.form.get('rate', 0)) / 100
+        years = int(request.form.get('years', 1))
         compound = int(request.form.get('compound', 12))
-        inflation_rate = float(request.form.get('inflation_rate', 0))
+        inflation_rate = float(request.form.get('inflation_rate', 0)) / 100
+        tax_rate = float(request.form.get('tax_rate', 0)) / 100
         slider_unit = request.form.get('slider_unit', 'months')
 
-        deposits = []
+        # Parse deposits
         deposit_count = int(request.form.get('deposit_count', 0))
+        deposits = []
         for i in range(deposit_count):
-            start = request.form.get(f'deposit_start_{i}')
-            end = request.form.get(f'deposit_end_{i}')
-            amount = request.form.get(f'deposit_amount_{i}', '')
-            print(f"Deposit {i}: start={start}, end={end}, amount={amount}")
-            if start and end:
-                try:
-                    start = int(start)
-                    end = int(end)
-                    amount = float(amount) if amount else 0
-                    if slider_unit == 'years':
-                        start = (start - 1) * 12 + 1
-                        end = end * 12
-                    deposits.append({
-                        'start_month': start,
-                        'end_month': end,
-                        'amount': round(amount, 2)
-                    })
-                except ValueError as e:
-                    print(f"Deposit {i} parsing error: {e}, using amount=0")
-                    if slider_unit == 'years':
-                        start = (int(start) - 1) * 12 + 1 if start else 1
-                        end = int(end) * 12 if end else 12
-                    deposits.append({
-                        'start_month': start,
-                        'end_month': end,
-                        'amount': 0
-                    })
+            start = int(request.form.get(f'deposit_start_{i}', 1))
+            end = int(request.form.get(f'deposit_end_{i}', 1))
+            amount = float(request.form.get(f'deposit_amount_{i}', 0))
+            deposits.append({'start': start, 'end': end, 'amount': amount})
 
-        withdrawals = []
+        # Parse withdrawals
         withdrawal_count = int(request.form.get('withdrawal_count', 0))
+        withdrawals = []
         for i in range(withdrawal_count):
-            start = request.form.get(f'withdrawal_start_{i}')
-            end = request.form.get(f'withdrawal_end_{i}')
-            amount = request.form.get(f'withdrawal_amount_{i}', '')
-            print(f"Withdrawal {i}: start={start}, end={end}, amount={amount}")
-            if start and end:
-                try:
-                    start = int(start)
-                    end = int(end)
-                    amount = float(amount) if amount else 0
-                    if slider_unit == 'years':
-                        start = (start - 1) * 12 + 1
-                        end = end * 12
-                    withdrawals.append({
-                        'start_month': start,
-                        'end_month': end,
-                        'amount': round(amount, 2)
-                    })
-                except ValueError as e:
-                    print(f"Withdrawal {i} parsing error: {e}, using amount=0")
-                    if slider_unit == 'years':
-                        start = (int(start) - 1) * 12 + 1 if start else 1
-                        end = int(end) * 12 if end else 12
-                    withdrawals.append({
-                        'start_month': start,
-                        'end_month': end,
-                        'amount': 0
-                    })
+            start = int(request.form.get(f'withdrawal_start_{i}', 1))
+            end = int(request.form.get(f'withdrawal_end_{i}', 1))
+            amount = float(request.form.get(f'withdrawal_amount_{i}', 0))
+            withdrawals.append({'start': start, 'end': end, 'amount': amount})
 
-        totals, yearly_data, chart_data = calculate_compound_interest(
-            initial, rate, years, compound, deposits, withdrawals, inflation_rate
+        # Calculate data
+        totals, yearly_data, chart_data = calculate_investment(
+            initial, rate, years, compound, inflation_rate, tax_rate, deposits, withdrawals, slider_unit
         )
-    else:
-        deposits = [{'start_month': 1, 'end_month': 60, 'amount': 100}]
 
-    slider_deposits = []
-    for dep in deposits:
-        if slider_unit == 'years':
-            start = (dep['start_month'] - 1) // 12 + 1
-            end = dep['end_month'] // 12
-            if dep['end_month'] % 12 != 0:
-                end += 1
-        else:
-            start = dep['start_month']
-            end = dep['end_month']
-        slider_deposits.append({'start': start, 'end': end, 'amount': dep['amount']})
+        # Return JSON for AJAX
+        return jsonify({
+            'totals': totals,
+            'yearly_data': yearly_data,
+            'chart_data': chart_data
+        })
 
-    slider_withdrawals = []
-    for wth in withdrawals:
-        if slider_unit == 'years':
-            start = (wth['start_month'] - 1) // 12 + 1
-            end = wth['end_month'] // 12
-            if wth['end_month'] % 12 != 0:
-                end += 1
-        else:
-            start = wth['start_month']
-            end = wth['end_month']
-        slider_withdrawals.append({'start': start, 'end': end, 'amount': wth['amount']})
-
-    print(f"Slider Deposits: {slider_deposits}")
-    print(f"Slider Withdrawals: {slider_withdrawals}")
-
-    return render_template('index.html', totals=totals, yearly_data=yearly_data, chart_data=chart_data,
-                           initial=initial, rate=rate, years=years, compound=compound,
-                           inflation_rate=inflation_rate, slider_unit=slider_unit, 
-                           deposits=slider_deposits, withdrawals=slider_withdrawals)
+# Custom filter for number formatting
+@app.template_filter('format_number')
+def format_number(value):
+    return "{:,.2f}".format(value)
 
 if __name__ == '__main__':
     app.run(debug=True)
