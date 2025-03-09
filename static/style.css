@@ -1,6 +1,6 @@
 body {
     font-family: Arial, sans-serif;
-    max-width: 1000px;
+    max-width: 1200px;
     margin: 20px auto;
     padding: 20px;
     background-color: #1e1e1e;
@@ -17,9 +17,8 @@ h1, h3 {
     padding: 20px;
     border-radius: 8px;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-    max-width: 1000px;
+    max-width: 1200px;
     margin: 20px auto;
-    /* Removed overflow: hidden to allow sticky header to work */
 }
 
 label {
@@ -162,17 +161,15 @@ button:hover {
     margin-top: 10px;
 }
 
-.calculate-btn {
-    margin-top: 20px;
-}
-
 .chart-container {
     margin-top: 20px;
     padding: 10px;
     background: #333;
     border-radius: 8px;
     width: 100%;
-    max-width: 900px;
+    max-width: 1150px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 #results, #details {
@@ -241,23 +238,42 @@ summary:hover {
 }
 
 .monthly-row {
-    display: none; /* Hidden by default, shown when details expanded */
+    display: none;
 }
 
 .monthly-container {
     width: 100%;
-    padding: 0; /* Remove padding to maximize space */
+    padding: 0;
 }
 
 .monthly-table {
     width: 100%;
     border-collapse: collapse;
     margin: 0;
-    max-width: 100%; /* Ensure it fits container */
+    max-width: 100%;
 }
 
 .monthly-table th, .monthly-table td {
     padding: 5px;
     font-size: 14px;
     white-space: nowrap;
+}
+
+/* Withdrawal slider bar */
+.withdrawal-entry .dual-slider::after {
+    background: #32CD32;
+}
+
+/* Withdrawal slider thumbs */
+.withdrawal-entry input[type="range"]::-webkit-slider-thumb {
+    background-color: #32CD32;
+}
+
+.withdrawal-entry input[type="range"]::-moz-range-thumb {
+    background-color: #32CD32;
+}
+
+/* Withdrawal range text (slider values) */
+.withdrawal-entry .slider-value {
+    color: #32CD32;
 }
