@@ -5,13 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Compound Interest Calculator</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <script src="{{ url_for('static', filename='script.js') }}" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <h1>Compound Interest Calculator</h1>
     <div class="container">
-        <form method="POST" id="calcForm">
+        <form id="calcForm">
             <label for="initial">Initial Investment ($):</label>
             <input type="number" id="initial" name="initial" value="{{ initial }}" min="0" step="0.01" required>
 
@@ -19,7 +18,7 @@
             <input type="number" id="rate" name="rate" value="{{ rate }}" min="0" step="0.1" required>
 
             <label for="years">Time Period (Years):</label>
-            <input type="number" id="years" name="years" value="{{ years }}" min="1" step="1" required oninput="updateSliders()">
+            <input type="number" id="years" name="years" value="{{ years }}" min="1" step="1" required>
 
             <label for="compound">Compounding Frequency:</label>
             <select id="compound" name="compound">
@@ -32,8 +31,11 @@
             <label for="inflation_rate">Annual Inflation Rate (%):</label>
             <input type="number" id="inflation_rate" name="inflation_rate" value="{{ inflation_rate }}" min="0" step="0.1" required>
 
+            <label for="tax_rate">Tax Rate on Interest (%):</label>
+            <input type="number" id="tax_rate" name="tax_rate" value="{{ tax_rate }}" min="0" step="0.1" required>
+
             <label for="slider_unit">Slider Unit:</label>
-            <select id="slider_unit" name="slider_unit" onchange="updateSliders()">
+            <select id="slider_unit" name="slider_unit">
                 <option value="months" {% if slider_unit == 'months' %}selected{% endif %}>Months</option>
                 <option value="years" {% if slider_unit == 'years' %}selected{% endif %}>Years</option>
             </select>
@@ -50,13 +52,13 @@
                     <div class="amount-row">
                         <label>Amount ($):</label>
                         <input type="number" name="deposit_amount_{{ loop.index0 }}" value="{{ dep.amount }}" min="0" step="0.01" required>
-                        <button type="button" onclick="this.parentElement.parentElement.remove(); updateDepositCount()">Remove</button>
+                        <button type="button" onclick="this.parentElement.parentElement.remove(); updateDepositCount(); updateResults();">Remove</button>
                     </div>
                 </div>
                 {% endfor %}
             </div>
             <button type="button" onclick="addDeposit({{ years }})">Add Deposit</button>
-            <input type="hidden" id="deposit_count" name="deposit_count" value="0">
+            <input type="hidden" id="deposit_count" name="deposit_count" value="{{ deposits|length }}">
 
             <h3>Withdrawals</h3>
             <div id="withdrawals">
@@ -70,32 +72,32 @@
                     <div class="amount-row">
                         <label>Amount ($):</label>
                         <input type="number" name="withdrawal_amount_{{ loop.index0 }}" value="{{ wth.amount }}" min="0" step="0.01" required>
-                        <button type="button" onclick="this.parentElement.parentElement.remove(); updateWithdrawalCount()">Remove</button>
+                        <button type="button" onclick="this.parentElement.parentElement.remove(); updateWithdrawalCount(); updateResults();">Remove</button>
                     </div>
                 </div>
                 {% endfor %}
             </div>
             <div class="button-group">
                 <button type="button" onclick="addWithdrawal({{ years }})">Add Withdrawal</button>
-                <input type="hidden" id="withdrawal_count" name="withdrawal_count" value="0">
-                <button type="submit" class="calculate-btn">Calculate</button>
+                <input type="hidden" id="withdrawal_count" name="withdrawal_count" value="{{ withdrawals|length }}">
             </div>
             <div class="chart-container">
                 <canvas id="investmentChart"></canvas>
             </div>
         </form>
 
-        {% if totals %}
         <div id="results">
+            {% if totals %}
             <h3>Results</h3>
             <p>Final Balance: ${{ totals.final_balance|format_number }}</p>
             <p>Inflation-Adjusted Final Balance: ${{ totals.adjusted_final_balance|format_number }}</p>
             <p>Total Deposits: ${{ totals.total_deposits|format_number }}</p>
             <p>Total Withdrawals: ${{ totals.total_withdrawals|format_number }}</p>
             <p>Total Interest Earned: ${{ totals.total_interest|format_number }}</p>
+            <p>Total Tax Paid: ${{ totals.total_tax|format_number }}</p>
             <p>Effective Annual Growth Rate: {{ totals.effective_rate|format_number }}%</p>
+            {% endif %}
         </div>
-        {% endif %}
 
         {% if yearly_data %}
         <div id="details">
@@ -111,6 +113,8 @@
                         <th>Total Withdrawals</th>
                         <th>Interest</th>
                         <th>Total Interest</th>
+                        <th>Taxes</th>
+                        <th>Total Taxes</th>
                         <th>Ending Balance</th>
                     </tr>
                 </thead>
@@ -129,10 +133,12 @@
                         <td>${{ data.total_withdrawals|format_number }}</td>
                         <td>${{ data.interest|format_number }}</td>
                         <td>${{ data.total_interest|format_number }}</td>
+                        <td>${{ data.taxes|format_number }}</td>
+                        <td>${{ data.total_taxes|format_number }}</td>
                         <td>${{ data.ending_balance|format_number }}</td>
                     </tr>
                     <tr class="monthly-row" style="display: none;">
-                        <td colspan="9">
+                        <td colspan="11">
                             <div class="monthly-container">
                                 <table class="monthly-table">
                                     <thead>
@@ -143,8 +149,10 @@
                                             <th>Total Deposits</th>
                                             <th>Withdrawals</th>
                                             <th>Total Withdrawals</th>
-                                            <th>Interest This Month</th>
+                                            <th>Interest</th>
                                             <th>Total Interest</th>
+                                            <th>Taxes</th>
+                                            <th>Total Taxes</th>
                                             <th>Ending Balance</th>
                                         </tr>
                                     </thead>
@@ -159,6 +167,8 @@
                                             <td>${{ month_data.total_withdrawals|format_number }}</td>
                                             <td>${{ month_data.interest_this_month|format_number }}</td>
                                             <td>${{ month_data.total_interest|format_number }}</td>
+                                            <td>${{ month_data.taxes|format_number }}</td>
+                                            <td>${{ month_data.total_taxes|format_number }}</td>
                                             <td>${{ month_data.ending_balance|format_number }}</td>
                                         </tr>
                                         {% endfor %}
@@ -174,25 +184,34 @@
         {% endif %}
     </div>
 
-    {% if chart_data %}
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        let chartInstance = null;
+        let chartDataGlobal = null;
+
+        function renderChart(data) {
+            if (chartInstance) chartInstance.destroy();
             const ctx = document.getElementById('investmentChart').getContext('2d');
-            new Chart(ctx, {
+            chartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: {{ chart_data.months|safe }},
+                    labels: data.months,
                     datasets: [
                         {
                             label: 'Total Money Invested',
-                            data: {{ chart_data.contributions|safe }},
+                            data: data.contributions,
                             borderColor: '#1e90ff',
                             fill: false
                         },
                         {
                             label: 'Total Money',
-                            data: {{ chart_data.balances|safe }},
+                            data: data.balances,
                             borderColor: '#ff6384',
+                            fill: false
+                        },
+                        {
+                            label: 'Total Withdrawals',
+                            data: data.withdrawals,
+                            borderColor: '#32CD32',
                             fill: false
                         }
                     ]
@@ -200,47 +219,350 @@
                 options: {
                     responsive: true,
                     scales: {
-                        x: {
-                            title: {
-                                display: true,
-                                text: 'Month'
+                        x: { 
+                            title: { display: true, text: 'Month' },
+                            ticks: {
+                                callback: function(value, index, values) {
+                                    if (index % Math.ceil(data.months.length / 10) === 0) {
+                                        return `M${data.months[index]}, Y${data.years[index]}`;
+                                    }
+                                    return '';
+                                }
                             }
                         },
                         y: {
-                            title: {
-                                display: true,
-                                text: 'Amount ($)'
-                            },
+                            title: { display: true, text: 'Amount ($)' },
                             ticks: {
                                 callback: function(value) {
-                                    return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                    return value.toLocaleString('en-US', { minimumFractionDigits: 2 });
                                 }
                             }
                         }
                     },
-                    tooltips: {
-                        callbacks: {
-                            label: function(tooltipItem) {
-                                return tooltipItem.dataset.label + ': $' + tooltipItem.yLabel.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    plugins: {
+                        tooltip: {
+                            mode: 'nearest',
+                            intersect: true,
+                            callbacks: {
+                                label: function(context) {
+                                    const monthIndex = context.dataIndex;
+                                    const datasetIndex = context.datasetIndex;
+                                    const value = context.parsed.y;
+                                    const month = data.months[monthIndex];
+                                    const year = data.years[monthIndex];
+
+                                    if (datasetIndex === 0) {
+                                        return [
+                                            `Month ${month}, Year ${year}`,
+                                            `Total Money Invested: $${value.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+                                            `Invested This Month: $${data.deposits[monthIndex].toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+                                        ];
+                                    } else if (datasetIndex === 1) {
+                                        return [
+                                            `Month ${month}, Year ${year}`,
+                                            `Total Money: $${value.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+                                            `Earned This Month: $${data.interest[monthIndex].toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+                                        ];
+                                    } else if (datasetIndex === 2) {
+                                        return [
+                                            `Month ${month}, Year ${year}`,
+                                            `Total Withdrawals: $${value.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+                                            `Withdrawn This Month: $${data.withdrawals_this_month[monthIndex].toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+                                        ];
+                                    }
+                                },
+                                title: function() {
+                                    return '';
+                                }
                             }
                         }
                     }
                 }
             });
+        }
 
-            // Toggle monthly data visibility
+        function updateResults() {
+            let formData = new FormData(document.getElementById('calcForm'));
+            fetch('/', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Network response was not ok');
+                return response.json();
+            })
+            .then(data => {
+                chartDataGlobal = data.chart_data;
+
+                // Update Results
+                let resultsDiv = document.getElementById('results');
+                resultsDiv.innerHTML = `
+                    <h3>Results</h3>
+                    <p>Final Balance: $${data.totals.final_balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                    <p>Inflation-Adjusted Final Balance: $${data.totals.adjusted_final_balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                    <p>Total Deposits: $${data.totals.total_deposits.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                    <p>Total Withdrawals: $${data.totals.total_withdrawals.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                    <p>Total Interest Earned: $${data.totals.total_interest.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                    <p>Total Tax Paid: $${data.totals.total_tax.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                    <p>Effective Annual Growth Rate: ${data.totals.effective_rate.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</p>
+                `;
+
+                // Update Yearly Breakdown
+                let detailsDiv = document.getElementById('details');
+                let yearlyHtml = `
+                    <h3>Yearly Breakdown</h3>
+                    <table class="yearly-table">
+                        <thead>
+                            <tr>
+                                <th>Year</th>
+                                <th>Starting Balance</th>
+                                <th>Deposits</th>
+                                <th>Total Deposits</th>
+                                <th>Withdrawals</th>
+                                <th>Total Withdrawals</th>
+                                <th>Interest</th>
+                                <th>Total Interest</th>
+                                <th>Taxes</th>
+                                <th>Total Taxes</th>
+                                <th>Ending Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                for (let year in data.yearly_data) {
+                    let yData = data.yearly_data[year];
+                    yearlyHtml += `
+                        <tr>
+                            <td><details><summary>Year ${year}</summary></details></td>
+                            <td>$${yData.starting_balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                            <td>$${yData.deposits.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                            <td>$${yData.total_deposits.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                            <td>$${yData.withdrawals.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                            <td>$${yData.total_withdrawals.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                            <td>$${yData.interest.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                            <td>$${yData.total_interest.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                            <td>$${yData.taxes.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                            <td>$${yData.total_taxes.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                            <td>$${yData.ending_balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                        </tr>
+                        <tr class="monthly-row" style="display: none;">
+                            <td colspan="11">
+                                <div class="monthly-container">
+                                    <table class="monthly-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Month</th>
+                                                <th>Starting Balance</th>
+                                                <th>Deposits</th>
+                                                <th>Total Deposits</th>
+                                                <th>Withdrawals</th>
+                                                <th>Total Withdrawals</th>
+                                                <th>Interest</th>
+                                                <th>Total Interest</th>
+                                                <th>Taxes</th>
+                                                <th>Total Taxes</th>
+                                                <th>Ending Balance</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                    `;
+                    yData.months.forEach(m => {
+                        yearlyHtml += `
+                            <tr>
+                                <td>${m.month}</td>
+                                <td>$${m.starting_balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                                <td>$${m.deposit_this_month.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                                <td>$${m.total_deposits.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                                <td>$${m.withdrawal_this_month.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                                <td>$${m.total_withdrawals.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                                <td>$${m.interest_this_month.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                                <td>$${m.total_interest.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                                <td>$${m.taxes.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                                <td>$${m.total_taxes.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                                <td>$${m.ending_balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                            </tr>
+                        `;
+                    });
+                    yearlyHtml += `
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }
+                yearlyHtml += `</tbody></table>`;
+                detailsDiv.innerHTML = yearlyHtml;
+
+                // Reattach event listeners for details toggle
+                document.querySelectorAll('.yearly-table details').forEach(detail => {
+                    detail.addEventListener('toggle', function() {
+                        const monthlyRow = this.closest('tr').nextElementSibling;
+                        monthlyRow.style.display = this.open ? 'table-row' : 'none';
+                    });
+                });
+
+                // Render chart
+                renderChart(chartDataGlobal);
+            })
+            .catch(error => {
+                console.error('Error updating results:', error);
+                document.getElementById('results').innerHTML = '<p>Error loading data. Please try again.</p>';
+            });
+        }
+
+        function updateSliderMaxValues() {
+            const yearsInput = document.getElementById('years').value;
+            const sliderUnit = document.getElementById('slider_unit').value;
+            const maxValue = sliderUnit === 'years' ? parseInt(yearsInput) : parseInt(yearsInput) * 12;
+
+            document.querySelectorAll('.deposit-entry').forEach((entry, index) => {
+                const startSlider = entry.querySelector(`input[name="deposit_start_${index}"]`);
+                const endSlider = entry.querySelector(`input[name="deposit_end_${index}"]`);
+                startSlider.max = maxValue;
+                endSlider.max = maxValue;
+                if (parseInt(startSlider.value) > maxValue) startSlider.value = maxValue;
+                if (parseInt(endSlider.value) > maxValue) endSlider.value = maxValue;
+                updateDualSlider('deposit', index);
+            });
+
+            document.querySelectorAll('.withdrawal-entry').forEach((entry, index) => {
+                const startSlider = entry.querySelector(`input[name="withdrawal_start_${index}"]`);
+                const endSlider = entry.querySelector(`input[name="withdrawal_end_${index}"]`);
+                startSlider.max = maxValue;
+                endSlider.max = maxValue;
+                if (parseInt(startSlider.value) > maxValue) startSlider.value = maxValue;
+                if (parseInt(endSlider.value) > maxValue) endSlider.value = maxValue;
+                updateDualSlider('withdrawal', index);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initial setup
+            document.querySelectorAll('.deposit-entry').forEach((entry, index) => updateDualSlider('deposit', index));
+            document.querySelectorAll('.withdrawal-entry').forEach((entry, index) => updateDualSlider('withdrawal', index));
+            updateDepositCount();
+            updateWithdrawalCount();
+
+            // Initial chart render with server-provided data
+            chartDataGlobal = {{ chart_data_json | safe }};
+            renderChart(chartDataGlobal);
+
+            // Event listeners
             document.querySelectorAll('.yearly-table details').forEach(detail => {
                 detail.addEventListener('toggle', function() {
                     const monthlyRow = this.closest('tr').nextElementSibling;
-                    if (this.open) {
-                        monthlyRow.style.display = 'table-row';
-                    } else {
-                        monthlyRow.style.display = 'none';
-                    }
+                    monthlyRow.style.display = this.open ? 'table-row' : 'none';
                 });
             });
+
+            document.getElementById('calcForm').addEventListener('input', function(e) {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') {
+                    updateResults();
+                    updateSliderMaxValues();
+                }
+            });
         });
+
+        function addDeposit(years) {
+            const container = document.getElementById('deposits');
+            const count = container.children.length;
+            const unit = document.getElementById('slider_unit').value;
+            const total = (unit === 'years') ? years : years * 12;
+            const defaultEnd = (unit === 'years') ? 5 : 60;
+            const div = document.createElement('div');
+            div.className = 'deposit-entry';
+            div.innerHTML = `
+                <label>Period: <span class="slider-value" id="deposit_start_val_${count}">1</span> - <span class="slider-value" id="deposit_end_val_${count}">${defaultEnd}</span></label>
+                <div class="dual-slider" data-min="1" data-max="${total}" data-start="1" data-end="${defaultEnd}">
+                    <input type="range" name="deposit_start_${count}" class="range-start" min="1" max="${total}" value="1" oninput="updateDualSlider('deposit', ${count})">
+                    <input type="range" name="deposit_end_${count}" class="range-end" min="1" max="${total}" value="${defaultEnd}" oninput="updateDualSlider('deposit', ${count})">
+                </div>
+                <div class="amount-row">
+                    <label>Amount ($):</label>
+                    <input type="number" name="deposit_amount_${count}" value="0" min="0" step="0.01" required>
+                    <button type="button" onclick="this.parentElement.parentElement.remove(); updateDepositCount(); updateResults();">Remove</button>
+                </div>
+            `;
+            container.appendChild(div);
+            updateDepositCount();
+            updateDualSlider('deposit', count);
+            updateResults();
+        }
+
+        function addWithdrawal(years) {
+            const container = document.getElementById('withdrawals');
+            const count = container.children.length;
+            const unit = document.getElementById('slider_unit').value;
+            const total = (unit === 'years') ? years : years * 12;
+            const defaultEnd = (unit === 'years') ? 5 : 60;
+            const div = document.createElement('div');
+            div.className = 'withdrawal-entry';
+            div.innerHTML = `
+                <label>Period: <span class="slider-value" id="withdrawal_start_val_${count}">1</span> - <span class="slider-value" id="withdrawal_end_val_${count}">${defaultEnd}</span></label>
+                <div class="dual-slider" data-min="1" data-max="${total}" data-start="1" data-end="${defaultEnd}">
+                    <input type="range" name="withdrawal_start_${count}" class="range-start" min="1" max="${total}" value="1" oninput="updateDualSlider('withdrawal', ${count})">
+                    <input type="range" name="withdrawal_end_${count}" class="range-end" min="1" max="${total}" value="${defaultEnd}" oninput="updateDualSlider('withdrawal', ${count})">
+                </div>
+                <div class="amount-row">
+                    <label>Amount ($):</label>
+                    <input type="number" name="withdrawal_amount_${count}" value="0" min="0" step="0.01" required>
+                    <button type="button" onclick="this.parentElement.parentElement.remove(); updateWithdrawalCount(); updateResults();">Remove</button>
+                </div>
+            `;
+            container.appendChild(div);
+            updateWithdrawalCount();
+            updateDualSlider('withdrawal', count);
+            updateResults();
+        }
+
+        function updateDepositCount() {
+            document.getElementById('deposit_count').value = document.getElementById('deposits').children.length;
+        }
+
+        function updateWithdrawalCount() {
+            document.getElementById('withdrawal_count').value = document.getElementById('withdrawals').children.length;
+        }
+
+        function updateDualSlider(type, index) {
+            const startInput = document.querySelector(`input[name="${type}_start_${index}"]`);
+            const endInput = document.querySelector(`input[name="${type}_end_${index}"]`);
+            const startVal = document.getElementById(`${type}_start_val_${index}`);
+            const endVal = document.getElementById(`${type}_end_val_${index}`);
+            const slider = startInput.parentElement;
+
+            let start = parseInt(startInput.value);
+            let end = parseInt(endInput.value);
+            const min = parseInt(startInput.min);
+            const max = parseInt(startInput.max);
+
+            if (start > end) {
+                if (startInput === document.activeElement) {
+                    endInput.value = start;
+                    end = start;
+                } else {
+                    startInput.value = end;
+                    start = end;
+                }
+            }
+
+            if (start > max) start = max;
+            if (end > max) end = max;
+
+            startInput.value = start;
+            endInput.value = end;
+            startVal.textContent = start;
+            endVal.textContent = end;
+
+            const range = max - min;
+            const leftPercent = ((start - min) / range) * 100;
+            const rightPercent = ((end - min) / range) * 100;
+            slider.style.setProperty('--left', `${leftPercent}%`);
+            slider.style.setProperty('--right', `${100 - rightPercent}%`);
+        }
     </script>
-    {% endif %}
 </body>
 </html>
