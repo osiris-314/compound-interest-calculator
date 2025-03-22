@@ -194,7 +194,7 @@
             chartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: data.months,
+                    labels: data.months, // Now uses absolute month numbers
                     datasets: [
                         {
                             label: 'Total Money Invested',
@@ -224,7 +224,7 @@
                             ticks: {
                                 callback: function(value, index, values) {
                                     if (index % Math.ceil(data.months.length / 10) === 0) {
-                                        return `M${data.months[index]}, Y${data.years[index]}`;
+                                        return `Month ${data.months[index]}`; // Show absolute month
                                     }
                                     return '';
                                 }
@@ -372,7 +372,7 @@
                     yData.months.forEach(m => {
                         yearlyHtml += `
                             <tr>
-                                <td>${m.month}</td>
+                                <td>${m.month}</td> <!-- Use absolute month number -->
                                 <td>$${m.starting_balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                                 <td>$${m.deposit_this_month.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                                 <td>$${m.total_deposits.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
@@ -564,5 +564,5 @@
             slider.style.setProperty('--right', `${100 - rightPercent}%`);
         }
     </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'924732076a67bd58',t:'MTc0MjY2MjMwMy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
