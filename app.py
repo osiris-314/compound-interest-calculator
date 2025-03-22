@@ -79,9 +79,9 @@ def calculate_investment(initial, rate, years, compound, inflation_rate, tax_rat
         yearly_data[year]['withdrawals'] += withdrawal_this_month
         yearly_data[year]['total_withdrawals'] = total_withdrawals
 
-        # Record monthly data
+        # Record monthly data with absolute month
         yearly_data[year]['months'].append({
-            'month': month % 12 or 12,
+            'month': month,  # Changed to absolute month number
             'starting_balance': balance - net_interest + withdrawal_this_month - deposit_this_month,
             'deposit_this_month': deposit_this_month,
             'total_deposits': total_deposits,
@@ -95,8 +95,8 @@ def calculate_investment(initial, rate, years, compound, inflation_rate, tax_rat
         })
         yearly_data[year]['ending_balance'] = balance
 
-        # Chart data
-        chart_data['months'].append(month % 12 or 12)
+        # Chart data with absolute month
+        chart_data['months'].append(month)  # Changed to absolute month number
         chart_data['years'].append(year)
         chart_data['balances'].append(balance)
         chart_data['contributions'].append(total_deposits + initial)
